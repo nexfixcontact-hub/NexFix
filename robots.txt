@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://nexfixcontact-hub.github.io/NexFix/sitemap.xml
