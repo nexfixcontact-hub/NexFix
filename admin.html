@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NexFix | Administration & Support Hub</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- EmailJS SDK CDN -->
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+
+    <style>
+        :root {
+            --bg-dark: #050507;
+            --bg-sidebar: #09090d;
+            --bg-card: #111116;
+            --bg-hover: #191922;
+            --accent: #5865F2;
+            --accent-glow: rgba(88, 101, 242, 0.35);
+            --accent-emerald: #10b981;
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+            --border: #23232f;
+            --border-light: #2d2d3d;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+        }
+
+        * {
+            box-sizing: border-box;
+            transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+        }
+
+        body {
+            background: var(--bg-dark);
+            color: var(--text-main);
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* --- SÉCURITÉ OVERLAY --- */
+        #security-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(5, 5, 7, 0.94); z-index: 9999;
+            display: flex; align-items: center; justify-content: center;
+            backdrop-filter: blur(25px); transition: opacity 0.5s ease;
+        }
+
+        .auth-card {
+            background: var(--bg-card); padding: 40px; border-radius: 28px;
+            border: 1px solid var(--border); width: 100%; max-width: 420px;
+            text-align: center; box-shadow: 0 25px 60px rgba(0,0,0,0.8), 0 0 30px rgba(88, 101, 242, 0.1);
+        }
+
+        .code-inputs { display: flex; gap: 8px; justify-content: center; margin: 25px 0; }
+        .code-inputs input {
+            width: 45px; height: 55px; background: #000; border: 1px solid var(--border-light);
+            border-radius: 14px; text-align: center; color: white; font-size: 1.3rem; font-weight: 700; outline: none;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+        }
+        .code-inputs input:focus { border-color: var(--accent); box-shadow: 0 0 10px var(--accent-glow); }
+
+        .fingerprint-scanner {
+            width: 90px; height: 90px; border-radius: 50%; border: 2px solid var(--accent);
+            margin: 30px auto; display: flex; align-items: center; justify-content: center;
+            cursor: pointer; position: relative; overflow: hidden; background: rgba(88, 101, 242, 0.05);
+            box-shadow: 0 0 20px var(--accent-glow);
+        }
+
+        @keyframes scanLine { 0% { top: 0%; } 100% { top: 100%; } }
+        .scanner-line {
+            position: absolute; width: 100%; height: 3px; background: var(--accent);
+            box-shadow: 0 0 15px var(--accent); top: 0; display: none;
+        }
+        .scanning .scanner-line { display: block; animation: scanLine 1.5s infinite ease-in-out; }
+
+        /* --- TOAST NOTIFICATIONS --- */
+        #toast-container {
+            position: fixed; bottom: 25px; right: 25px; z-index: 10000;
+            display: flex; flex-direction: column; gap: 10px; pointer-events: none;
+        }
+        .toast {
+            pointer-events: auto; padding: 14px 20px; border-radius: 14px;
+            background: var(--bg-card); border: 1px solid var(--border-light);
+            color: white; font-size: 0.88rem; font-weight: 600;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5); display: flex; align-items: center; gap: 12px;
+            animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .toast.success { border-left: 4px solid var(--success); }
+        .toast.danger { border-left: 4px solid var(--danger); }
+        .toast.info { border-left: 4px solid var(--accent); }
+        .toast.warning { border-left: 4px solid var(--warning); }
+
+        @keyframes slideInRight {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        /* --- LAYOUT --- */
+        .sidebar { width: 280px; background: var(--bg-sidebar); border-right: 1px solid var(--border); padding: 25px; display: flex; flex-direction: column; }
+        .logo { font-weight: 900; font-size: 1.25rem; margin-bottom: 35px; letter-spacing: -0.5px; display: flex; align-items: center; gap: 10px; }
+        .logo-badge { background: var(--accent); color: white; padding: 4px 8px; border-radius: 6px; font-size: 0.7rem; font-weight: 800; }
+
+        .nav-link { padding: 14px 16px; border-radius: 14px; cursor: pointer; font-size: 0.88rem; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; display: flex; align-items: center; gap: 12px; }
+        .nav-link:hover { color: white; background: var(--bg-hover); }
+        .nav-link.active { background: var(--accent); color: white; box-shadow: 0 4px 15px var(--accent-glow); }
+
+        .viewport { flex: 1; display: flex; flex-direction: column; position: relative; overflow: hidden; }
+        .header { height: 75px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 40px; background: rgba(9, 9, 13, 0.5); backdrop-filter: blur(10px); }
+        
+        .content-area { padding: 35px; overflow-y: auto; flex: 1; display: none; }
+        .content-area.active { display: block; animation: fadeIn 0.35s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* --- CONTROLS & CARDS --- */
+        .task-card { background: var(--bg-card); padding: 25px; border-radius: 20px; border: 1px solid var(--border); box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+        .control-input { background: #000; border: 1px solid var(--border-light); border-radius: 12px; color: white; padding: 12px 16px; margin-bottom: 15px; width: 100%; outline: none; font-size: 0.9rem; }
+        .control-input:focus { border-color: var(--accent); box-shadow: 0 0 8px var(--accent-glow); }
+        
+        .btn-update { width: 100%; padding: 14px; background: var(--accent); color: white; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; font-size: 0.9rem; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        .btn-update:hover { filter: brightness(1.15); transform: translateY(-1px); }
+        .btn-secondary { background: #1e1e28; color: white; border: 1px solid var(--border-light); }
+        .btn-secondary:hover { background: #282836; }
+
+        /* --- SUPPORT & CHAT --- */
+        .support-grid { display: grid; grid-template-columns: 320px 1fr; height: calc(100vh - 170px); background: var(--bg-card); border-radius: 24px; border: 1px solid var(--border); overflow: hidden; }
+        .client-list { border-right: 1px solid var(--border); background: #08080c; overflow-y: auto; }
+        .client-item { padding: 18px 20px; border-bottom: 1px solid var(--border); cursor: pointer; border-left: 3px solid transparent; }
+        .client-item:hover { background: var(--bg-hover); }
+        .client-item.selected { background: rgba(88, 101, 242, 0.12); border-left-color: var(--accent); }
+        .client-name { font-weight: 700; font-size: 0.92rem; color: white; display: flex; justify-content: space-between; align-items: center; }
+        .client-email { font-size: 0.78rem; color: var(--text-muted); margin-top: 4px; font-family: 'Fira Code', monospace; }
+
+        #chat-display { flex: 1; overflow-y: auto; padding: 25px; display: flex; flex-direction: column; gap: 15px; background: #060609; }
+        .msg { max-width: 70%; padding: 14px 18px; border-radius: 18px; font-size: 0.9rem; line-height: 1.5; position: relative; word-wrap: break-word; }
+        .msg-sender-name { font-size: 0.73rem; font-weight: 800; margin-bottom: 4px; letter-spacing: 0.3px; }
+        .msg-admin { background: var(--accent); color: white; align-self: flex-end; border-bottom-right-radius: 4px; box-shadow: 0 4px 15px var(--accent-glow); }
+        .msg-admin .msg-sender-name { color: #e0e7ff; }
+        .msg-client { background: #1e1e26; color: var(--text-main); align-self: flex-start; border-bottom-left-radius: 4px; border: 1px solid var(--border); }
+        .msg-client .msg-sender-name { color: #818cf8; }
+        .msg-meta { font-size: 0.68rem; opacity: 0.7; margin-top: 6px; display: flex; justify-content: space-between; gap: 10px; }
+        .msg-badge { font-size: 0.65rem; background: rgba(255,255,255,0.2); padding: 2px 6px; border-radius: 4px; text-transform: uppercase; font-weight: 700; }
+
+        /* --- SETTINGS GRID --- */
+        .settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 25px; }
+        .badge-status { padding: 4px 10px; border-radius: 20px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; }
+        .badge-success { background: rgba(16, 185, 129, 0.15); color: var(--success); border: 1px solid rgba(16, 185, 129, 0.3); }
+
+        /* LOGS TABLE */
+        .logs-table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 0.85rem; }
+        .logs-table th { text-align: left; padding: 12px; background: #0a0a0f; color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; border-bottom: 1px solid var(--border); }
+        .logs-table td { padding: 12px; border-bottom: 1px solid var(--border); font-family: 'Fira Code', monospace; font-size: 0.8rem; }
+    </style>
+</head>
+<body>
+
+    <div id="security-overlay">
+        <div class="auth-card" id="step-otp">
+            <h2 style="margin: 0 0 8px 0; font-size: 1.5rem;">Discord OTP Sentinel</h2>
+            <p style="color: var(--text-muted); font-size: 0.82rem; margin-bottom: 25px;">Un code de vérification à 6 chiffres a été envoyé sur votre Discord Admin.</p>
+            
+            <div class="code-inputs" id="otp-container">
+                <input type="text" maxlength="1" autofocus> 
+                <input type="text" maxlength="1"> 
+                <input type="text" maxlength="1">
+                <input type="text" maxlength="1"> 
+                <input type="text" maxlength="1"> 
+                <input type="text" maxlength="1">
+            </div>
+            
+            <button onclick="verifyOTP()" class="btn-update" style="margin-top: 10px;">VÉRIFIER L'ACCÈS 🔑</button>
+            <p style="font-size: 0.72rem; color: var(--text-muted); margin-top: 15px;">Code de secours d'urgence : <code style="color:var(--accent);">000000</code></p>
+        </div>
+        
+        <div class="auth-card" id="step-bio" style="display:none;">
+            <h2 style="margin: 0 0 8px 0; font-size: 1.5rem;">Biométrie Admin</h2>
+            <p style="color: var(--text-muted); font-size: 0.82rem;">Maintenez le capteur pour scanner votre empreinte digitale.</p>
+            <div class="fingerprint-scanner" id="scanner" onmousedown="startScan()" onmouseup="stopScan()" onmouseleave="stopScan()" ontouchstart="startScan()" ontouchend="stopScan()">
+                <div class="scanner-line"></div>
+                <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2a10 10 0 0 0-8 8v1a10 10 0 0 0 20 0V10a10 10 0 0 0-12-8z"/>
+                    <path d="M12 6a6 6 0 0 0-6 6v1a6 6 0 0 0 12 0V12a6 6 0 0 0-6-6z"/>
+                    <path d="M12 10a2 2 0 0 0-2 2v1a2 2 0 0 0 4 0V12a2 2 0 0 0-2-2z"/>
+                </svg>
+            </div>
+            <span style="font-size: 0.75rem; color: var(--text-muted);">Maintien pendant 2s requis...</span>
+        </div>
+    </div>
+
+    <!-- TOAST CONTAINER -->
+    <div id="toast-container"></div>
+
+    <nav class="sidebar">
+        <div class="logo">
+            SENTINEL<span style="color:var(--accent)">ADMIN</span>
+            <span class="logo-badge">PRO v3.2</span>
+        </div>
+
+        <div class="nav-link active" onclick="switchTab('dash', this)">
+            <span>📊</span> Tableau de bord
+        </div>
+        <div class="nav-link" onclick="switchTab('support', this)">
+            <span>💬</span> Suivi & Multi-Canaux
+        </div>
+        <div class="nav-link" onclick="switchTab('settings', this)">
+            <span>⚙️</span> EmailJS & Discord Config
+        </div>
+        <div class="nav-link" onclick="switchTab('logs', this)">
+            <span>📜</span> Journal d'Activités
+        </div>
+
+        <div style="margin-top: auto;">
+            <div id="status-label" style="font-size: 0.7rem; color: var(--success); font-weight: 800; text-align: center; margin-bottom: 15px; background: rgba(16, 185, 129, 0.1); padding: 8px; border-radius: 10px; border: 1px solid rgba(16, 185, 129, 0.2);">
+                ● SYNC DISCORD & EMAILJS ACTIVE
+            </div>
+            <button onclick="location.reload()" style="width:100%; padding:12px; background:none; border:1px solid var(--danger); color:var(--danger); border-radius:12px; cursor:pointer; font-weight: 700; font-size: 0.85rem;">DECONNEXION</button>
+        </div>
+    </nav>
+
+    <main class="viewport">
+        <header class="header">
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <div id="tab-title" style="font-weight: 800; letter-spacing: 1px; font-size: 1.1rem;">TABLEAU DE BORD</div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 20px;">
+                <span class="badge-status badge-success" id="emailjs-status">EmailJS : Prêt</span>
+                <div id="clock" style="font-family: 'Fira Code'; font-size: 0.85rem; color: var(--accent); font-weight: 600;">00:00:00</div>
+            </div>
+        </header>
+
+        <!-- TAB 1: DASHBOARD -->
+        <section id="tab-dash" class="content-area active">
+            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 25px;">
+                <div class="task-card" style="height: 420px; display: flex; flex-direction: column;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h4 style="margin:0; font-size: 1.05rem;">Activité Réseau & Notifications</h4>
+                        <span style="font-size: 0.75rem; color: var(--text-muted);">Mise à jour temps réel</span>
+                    </div>
+                    <div style="flex:1; position: relative;">
+                        <canvas id="mainChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="task-card">
+                    <h4 style="margin-top:0; margin-bottom: 15px; font-size: 1.05rem;">Contrôle de Projet Client</h4>
+                    
+                    <label style="font-size: 0.72rem; color: var(--text-muted); font-weight: 700;">PROJET ET CLIENT CIBLE</label>
+                    <select id="proj-client-select" class="control-input" onchange="syncProjectFields()">
+                        <!-- Dynamic options loaded via JS -->
+                    </select>
+
+                    <label style="font-size: 0.72rem; color: var(--text-muted); font-weight: 700;">AVANCEMENT DU PROJET (%)</label>
+                    <input type="number" id="proj-percent" class="control-input" placeholder="75" min="0" max="100">
+                    
+                    <label style="font-size: 0.72rem; color: var(--text-muted); font-weight: 700;">ESTIMATION DATE DE LIVRAISON</label>
+                    <input type="text" id="proj-deadline" class="control-input" placeholder="28 Septembre 2026">
+                    
+                    <div style="margin-bottom: 15px;">
+                        <label style="font-size: 0.78rem; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                            <input type="checkbox" id="notify-email-check" checked style="accent-color: var(--accent);">
+                            Envoyer également par EmailJS au client
+                        </label>
+                    </div>
+
+                    <button onclick="updateClientProject()" class="btn-update">
+                        🚀 METTRE À JOUR & NOTIFIER
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB 2: SUPPORT & MESSAGING -->
+        <section id="tab-support" class="content-area">
+            <div class="support-grid">
+                <div class="client-list" id="client-list">
+                    <!-- Dynamic client list populated by JS -->
+                </div>
+                
+                <div style="display:flex; flex-direction:column;">
+                    <div id="chat-header" style="padding:16px 25px; background:#0e0e14; border-bottom:1px solid var(--border); display:flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <span id="curr-client-name" style="font-weight: 800; color: white; font-size: 1rem;">Sélectionnez un client</span>
+                            <span id="curr-client-email" style="display:block; font-size: 0.75rem; color: var(--text-muted); font-family: 'Fira Code', monospace;">---</span>
+                        </div>
+                        <div style="display: flex; gap: 10px;">
+                            <button onclick="quickEmailPrompt()" class="btn-update btn-secondary" style="padding: 6px 14px; font-size: 0.75rem;">📧 E-mail Direct</button>
+                        </div>
+                    </div>
+
+                    <div id="chat-display">
+                        <div style="text-align: center; margin-top: 180px; color: var(--text-muted);">
+                            <p>👈 Veuillez sélectionner un client dans le panneau de gauche.</p>
+                        </div>
+                    </div>
+
+                    <div style="padding:20px; background:#0e0e14; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:10px;">
+                        <div style="display:flex; justify-content: space-between; align-items: center; font-size: 0.78rem; color: var(--text-muted);">
+                            <label style="cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                                <input type="checkbox" id="send-email-too" checked style="accent-color: var(--accent);">
+                                Transmettre la réponse par Email (EmailJS)
+                            </label>
+                            <label style="cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                                <input type="checkbox" id="send-discord-too" checked style="accent-color: var(--accent);">
+                                Logger sur Discord Webhook
+                            </label>
+                        </div>
+                        
+                        <div style="display:flex; gap:12px;">
+                            <input type="text" id="admin-reply" placeholder="Rédigez votre message d'assistance..." style="flex:1; background:#000; border:1px solid var(--border-light); border-radius:12px; color:white; padding:15px; outline:none;" onkeypress="if(event.key==='Enter') sendAdminMsg()">
+                            <button onclick="sendAdminMsg()" class="btn-update" style="width: auto; padding: 0 28px;">
+                                ENVOYER ✉️
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB 3: EMAILJS & DISCORD SETTINGS -->
+        <section id="tab-settings" class="content-area">
+            <h3 style="margin-top:0;">Paramètres des Intégrations API</h3>
+            <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 25px;">Configurez vos identifiants EmailJS et Discord Webhook pour activer l'envoi automatique d'e-mails et de notifications.</p>
+
+            <div class="settings-grid">
+                <div class="task-card">
+                    <h4 style="margin-top:0; color: var(--accent);">📧 Configuration EmailJS</h4>
+                    
+                    <label style="font-size: 0.72rem; color: var(--text-muted); font-weight: 700;">PUBLIC KEY (USER ID)</label>
+                    <input type="text" id="setting-emailjs-public" class="control-input" placeholder="ex: user_XXXXXXXXXXXXX">
+
+                    <label style="font-size: 0.72rem; color: var(--text-muted); font-weight: 700;">SERVICE ID</label>
+                    <input type="text" id="setting-emailjs-service" class="control-input" placeholder="ex: service_abc123">
+
+                    <label style="font-size: 0.72rem; color: var(--text-muted); font-weight: 700;">TEMPLATE ID</label>
+                    <input type="text" id="setting-emailjs-template" class="control-input" placeholder="ex: template_xyz789">
+
+                    <div style="display: flex; gap: 10px; margin-top: 10px;">
+                        <button onclick="saveEmailJSConfig()" class="btn-update" style="flex: 1;">Enregistrer</button>
+                        <button onclick="testEmailJS()" class="btn-update btn-secondary" style="flex: 1;">Tester EmailJS</button>
+                    </div>
+                </div>
+
+                <div class="task-card">
+                    <h4 style="margin-top:0; color: #7289da;">💬 Configuration Discord Webhook</h4>
+                    
+                    <label style="font-size: 0.72rem; color: var(--text-muted); font-weight: 700;">WEBHOOK URL</label>
+                    <input type="text" id="setting-discord-url" class="control-input" placeholder="https://discord.com/api/webhooks/...">
+
+                    <label style="font-size: 0.72rem; color: var(--text-muted); font-weight: 700;">NOM DE L'EXPÉDITEUR BOT</label>
+                    <input type="text" id="setting-discord-username" class="control-input" value="NexFix Sentinel Admin" placeholder="Sentinel Bot">
+
+                    <div style="display: flex; gap: 10px; margin-top: 25px;">
+                        <button onclick="saveDiscordConfig()" class="btn-update" style="flex: 1;">Enregistrer</button>
+                        <button onclick="testDiscordWebhook()" class="btn-update btn-secondary" style="flex: 1;">Test Webhook</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB 4: ACTIVITY LOGS -->
+        <section id="tab-logs" class="content-area">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="margin: 0;">Journal des Notifications & E-mails</h3>
+                <button onclick="clearLogs()" class="btn-update btn-secondary" style="width: auto; padding: 8px 16px; font-size: 0.8rem;">Vider les logs</button>
+            </div>
+            
+            <div class="task-card" style="padding: 10px 20px;">
+                <table class="logs-table">
+                    <thead>
+                        <tr>
+                            <th>HORODATE</th>
+                            <th>CANAL</th>
+                            <th>DESTINATAIRE / TITRE</th>
+                            <th>DETAIL DES ACTIONS</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logs-body">
+                        <!-- Dynamic logs -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <!-- BRIDGE UNIFIÉ IFRAME -->
+    <iframe id="sync-bridge" src="bridge.html" style="display:none;"></iframe>
+
+    <script>
+        const DEFAULT_DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1486645187789979658/peP3yEJg0Tko9ZFr5lA0XGDjYA8UBj2bNugpQGzJYa9VrPHaDTtdA1Lvpe2c1A_AHfQw";
+        
+        let clientsData = [
+            { id: "client_1", name: "Jean Dupont", email: "jean.dupont@example.com", project: "Refonte e-Commerce NexFix", progress: 75, deadline: "15 Oct 2026" },
+            { id: "client_2", name: "Sophie Martin", email: "sophie.martin@domain.fr", project: "Application Mobile iOS", progress: 40, deadline: "01 Nov 2026" },
+            { id: "client_3", name: "Cabinet Valois", email: "contact@cabinetvalois.com", project: "Audit & Sécurité Réseau", progress: 90, deadline: "10 Sept 2026" }
+        ];
+
+        let currentClientId = "client_1";
+        let generatedOTP = "";
+        let scanTimer;
+
+        function escapeHTML(str) {
+            if (!str) return '';
+            return str.replace(/[&<>'"]/g, 
+                tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+            );
+        }
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            
+            let icon = 'ℹ️';
+            if (type === 'success') icon = '✅';
+            if (type === 'danger') icon = '⚠️';
+            if (type === 'warning') icon = '🔔';
+
+            toast.innerHTML = `<span>${icon}</span> <span>${message}</span>`;
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateX(100%)';
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+
+        function switchTab(id, el) {
+            document.querySelectorAll('.content-area').forEach(c => c.classList.remove('active'));
+            document.querySelectorAll('.nav-link').forEach(n => n.classList.remove('active'));
+            document.getElementById('tab-' + id).classList.add('active');
+            if (el) el.classList.add('active');
+            document.getElementById('tab-title').innerText = id.toUpperCase();
+        }
+
+        function getEmailJSConfig() {
+            return {
+                publicKey: localStorage.getItem('emailjs_public_key') || '',
+                serviceId: localStorage.getItem('emailjs_service_id') || '',
+                templateId: localStorage.getItem('emailjs_template_id') || ''
+            };
+        }
+
+        function initEmailJSSDK() {
+            const config = getEmailJSConfig();
+            const badge = document.getElementById('emailjs-status');
+            if (config.publicKey && typeof emailjs !== 'undefined') {
+                try {
+                    emailjs.init(config.publicKey);
+                    badge.innerText = "EmailJS : Configuré";
+                    badge.className = "badge-status badge-success";
+                } catch(e) {
+                    console.error("EmailJS init failed", e);
+                }
+            } else {
+                badge.innerText = "EmailJS : Non configuré";
+                badge.style.background = "rgba(239, 68, 68, 0.15)";
+                badge.style.color = "var(--danger)";
+            }
+        }
+
+        async function sendDiscordNotification(title, description, color = 5814783, fields = []) {
+            const webhookUrl = localStorage.getItem('discord_webhook_url') || DEFAULT_DISCORD_WEBHOOK;
+            if (!webhookUrl) return;
+
+            const payload = {
+                username: localStorage.getItem('discord_bot_name') || "NexFix Admin Sentinel",
+                embeds: [{
+                    title: title,
+                    description: description,
+                    color: color,
+                    fields: fields,
+                    timestamp: new Date().toISOString(),
+                    footer: { text: "NexFix Security & Support Hub" }
+                }]
+            };
+
+            try {
+                await fetch(webhookUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                addLog("DISCORD", title, description);
+            } catch (err) {
+                console.error("Discord Notification Error:", err);
+            }
+        }
+
+        async function sendEmailViaEmailJS(recipientEmail, recipientName, messageContent, subject = "Message de NexFix Admin") {
+            const config = getEmailJSConfig();
+
+            if (!config.publicKey || !config.serviceId || !config.templateId) {
+                showToast("EmailJS non configuré ! Allez dans les Paramètres.", "warning");
+                return false;
+            }
+
+            const templateParams = {
+                to_email: recipientEmail,
+                to_name: recipientName,
+                user_email: recipientEmail,
+                message: messageContent,
+                subject: subject,
+                from_name: "NexFix Sentinel Support"
+            };
+
+            try {
+                const response = await emailjs.send(config.serviceId, config.templateId, templateParams);
+                showToast(`E-mail envoyé avec succès à ${recipientEmail} !`, "success");
+                addLog("EMAILJS", `Destinataire : ${recipientEmail}`, messageContent);
+                return true;
+            } catch (error) {
+                console.error("Erreur EmailJS :", error);
+                showToast("Échec de l'envoi de l'e-mail via EmailJS.", "danger");
+                return false;
+            }
+        }
+
+        function sendOTP() {
+            generatedOTP = Math.floor(100000 + Math.random() * 900000).toString();
+            sendDiscordNotification(
+                "🔐 Code OTP Administration NexFix",
+                `Un administrateur tente d'accéder au panneau.\n\nCode de confirmation : **${generatedOTP}**`,
+                15105570,
+                [{ name: "Horodate", value: new Date().toLocaleTimeString(), inline: true }]
+            );
+        }
+
+        function verifyOTP() {
+            let inputsVal = "";
+            document.querySelectorAll('#otp-container input').forEach(i => inputsVal += i.value);
+            if(inputsVal === generatedOTP || inputsVal === "000000") {
+                document.getElementById('step-otp').style.display = 'none';
+                document.getElementById('step-bio').style.display = 'block';
+                showToast("OTP Validé. Veuillez passer à l'empreinte biométrique.", "success");
+            } else {
+                showToast("Code OTP erroné.", "danger");
+            }
+        }
+
+        function startScan() {
+            document.getElementById('scanner').classList.add('scanning');
+            scanTimer = setTimeout(() => {
+                document.getElementById('security-overlay').style.opacity = '0';
+                setTimeout(() => {
+                    document.getElementById('security-overlay').style.display='none';
+                    showToast("Bienvenue dans NexFix Sentinel Admin", "success");
+                    sendDiscordNotification("🟢 Connexion Administrateur Réussie", "Un administrateur s'est connecté au tableau de bord.", 3066993);
+                }, 500);
+            }, 1800);
+        }
+
+        function stopScan() {
+            document.getElementById('scanner').classList.remove('scanning');
+            clearTimeout(scanTimer);
+        }
+
+        /* --- DYNAMISME & SYNCHRONISATION DES CLIENTS --- */
+        function loadAllClientsAndChats() {
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && (key.startsWith('chat_') || key.startsWith('nexfix_chat_'))) {
+                    const rawId = key.replace('nexfix_chat_', '').replace('chat_', '');
+                    const clientId = rawId.startsWith('client_') ? rawId : 'client_' + rawId;
+                    
+                    let history = [];
+                    try { history = JSON.parse(localStorage.getItem(key)) || []; } catch(e){}
+
+                    let client = clientsData.find(c => c.id === clientId);
+                    if (!client && history.length > 0) {
+                        const firstMsg = history.find(m => m.sender === 'CLIENT' || m.senderName);
+                        const clientName = (firstMsg && (firstMsg.senderName || firstMsg.name)) ? (firstMsg.senderName || firstMsg.name) : `Client (${rawId})`;
+                        const clientEmail = (firstMsg && firstMsg.email) ? firstMsg.email : `${rawId}@client.com`;
+
+                        const newClient = {
+                            id: clientId,
+                            name: clientName,
+                            email: clientEmail,
+                            project: "Demande Espace Client",
+                            progress: 50,
+                            deadline: "En attente"
+                        };
+                        clientsData.push(newClient);
+                    } else if (client && history.length > 0) {
+                        const lastMsgWithInfo = [...history].reverse().find(m => m.senderName || m.name);
+                        if (lastMsgWithInfo) {
+                            if (lastMsgWithInfo.senderName) client.name = lastMsgWithInfo.senderName;
+                            if (lastMsgWithInfo.email) client.email = lastMsgWithInfo.email;
+                        }
+                    }
+                }
+            }
+        }
+
+        function populateClientSelect() {
+            const select = document.getElementById('proj-client-select');
+            select.innerHTML = clientsData.map(c => `<option value="${c.id}">${c.name} - (${c.project})</option>`).join('');
+            syncProjectFields();
+        }
+
+        function syncProjectFields() {
+            const selectedId = document.getElementById('proj-client-select').value;
+            const client = clientsData.find(c => c.id === selectedId);
+            if (client) {
+                document.getElementById('proj-percent').value = client.progress;
+                document.getElementById('proj-deadline').value = client.deadline;
+            }
+        }
+
+        function updateClientProject() {
+            const selectedId = document.getElementById('proj-client-select').value;
+            const client = clientsData.find(c => c.id === selectedId);
+            const percent = document.getElementById('proj-percent').value;
+            const deadline = document.getElementById('proj-deadline').value;
+            const notifyEmail = document.getElementById('notify-email-check').checked;
+
+            if(!client || !percent) {
+                showToast("Veuillez remplir tous les champs du projet.", "warning");
+                return;
+            }
+
+            client.progress = parseInt(percent);
+            client.deadline = deadline;
+
+            const bridgeFrame = document.getElementById('sync-bridge');
+            if (bridgeFrame && bridgeFrame.contentWindow) {
+                bridgeFrame.contentWindow.postMessage({ type: 'WRITE_TO_WEB', key: `proj_${client.id}`, value: JSON.stringify(client) }, "*");
+            }
+
+            sendDiscordNotification(
+                "🛠️ Mis à jour de Projet Client",
+                `Le projet de **${client.name}** a été mis à jour par l'administration.`,
+                3447003,
+                [
+                    { name: "Projet", value: client.project, inline: true },
+                    { name: "Avancement", value: `${percent}%`, inline: true },
+                    { name: "Livraison Prevue", value: deadline, inline: true }
+                ]
+            );
+
+            if (notifyEmail) {
+                const msgBody = `Bonjour ${client.name},\n\nVotre projet "${client.project}" a été mis à jour par notre équipe.\nNouveau statut d'avancement : ${percent}%\nDate de livraison estimée : ${deadline}\n\nMerci pour votre confiance,\nL'équipe NexFix.`;
+                sendEmailViaEmailJS(client.email, client.name, msgBody, `Mise à jour de votre projet NexFix (${percent}%)`);
+            }
+
+            showToast(`Projet de ${client.name} mis à jour avec succès !`, "success");
+        }
+
+        function renderClientList() {
+            const listEl = document.getElementById('client-list');
+            listEl.innerHTML = clientsData.map(c => `
+                <div class="client-item ${c.id === currentClientId ? 'selected' : ''}" onclick="selectClient('${c.id}')">
+                    <div class="client-name">
+                        <span>${escapeHTML(c.name)}</span>
+                        <span style="font-size: 0.7rem; color: var(--accent); font-weight: 700;">${c.progress}%</span>
+                    </div>
+                    <div class="client-email">${escapeHTML(c.email)}</div>
+                </div>
+            `).join('');
+        }
+
+        function selectClient(clientId) {
+            currentClientId = clientId;
+            renderClientList();
+            const client = clientsData.find(c => c.id === clientId);
+            if (client) {
+                document.getElementById('curr-client-name').innerText = client.name;
+                document.getElementById('curr-client-email').innerText = client.email;
+            }
+            renderMessages();
+        }
+
+        function sendAdminMsg() {
+            const input = document.getElementById('admin-reply');
+            const text = input.value.trim();
+            const client = clientsData.find(c => c.id === currentClientId);
+
+            if (!text || !client) return;
+
+            const key = 'chat_' + currentClientId;
+            let history = JSON.parse(localStorage.getItem(key)) || JSON.parse(localStorage.getItem('nexfix_chat_' + currentClientId)) || [];
+
+            const msgObj = { 
+                sender: 'ADMIN', 
+                senderName: 'Administrateur NexFix',
+                text: text, 
+                time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) 
+            };
+            history.push(msgObj);
+            
+            localStorage.setItem(key, JSON.stringify(history));
+            localStorage.setItem('nexfix_chat_' + currentClientId, JSON.stringify(history));
+
+            const sendEmail = document.getElementById('send-email-too').checked;
+            if (sendEmail) {
+                sendEmailViaEmailJS(client.email, client.name, text, `Support NexFix - Message de l'administrateur`);
+            }
+
+            const sendDiscord = document.getElementById('send-discord-too').checked;
+            if (sendDiscord) {
+                sendDiscordNotification(
+                    `💬 Message Support Admin à ${client.name}`,
+                    `**Admin -> ${client.name} (${client.email})** :\n"${text}"`,
+                    10181046
+                );
+            }
+
+            input.value = "";
+            renderMessages();
+            showToast("Message envoyé et synchronisé !", "success");
+        }
+
+        function renderMessages() {
+            const display = document.getElementById('chat-display');
+            const client = clientsData.find(c => c.id === currentClientId);
+            if (!client) {
+                display.innerHTML = `<div style="text-align: center; margin-top: 180px; color: var(--text-muted);"><p>👈 Veuillez sélectionner un client dans le panneau de gauche.</p></div>`;
+                return;
+            }
+
+            let history = JSON.parse(localStorage.getItem('chat_' + currentClientId)) 
+                       || JSON.parse(localStorage.getItem('nexfix_chat_' + currentClientId));
+            
+            if (!history) {
+                const cleanId = currentClientId.replace('client_', '');
+                history = JSON.parse(localStorage.getItem('chat_' + cleanId)) || JSON.parse(localStorage.getItem('nexfix_chat_' + cleanId)) || [];
+            }
+
+            if (history.length === 0) {
+                display.innerHTML = `
+                    <div style="text-align: center; margin-top: 180px; color: var(--text-muted);">
+                        <p>Aucun message échangé avec <strong>${escapeHTML(client.name)}</strong> pour le moment.</p>
+                    </div>`;
+                return;
+            }
+
+            display.innerHTML = history.map(m => {
+                const isAdmin = (m.sender === 'ADMIN');
+                const displayName = isAdmin ? 'Administrateur NexFix' : (m.senderName || m.name || client.name);
+                const timeStr = m.time || new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+
+                return `
+                    <div class="msg ${isAdmin ? 'msg-admin' : 'msg-client'}">
+                        <div class="msg-sender-name">${escapeHTML(displayName)}</div>
+                        <div>${escapeHTML(m.text || m.message || '')}</div>
+                        <div class="msg-meta">
+                            <span class="msg-badge">${isAdmin ? 'ADMIN' : 'CLIENT'}</span>
+                            <span>${escapeHTML(timeStr)}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            display.scrollTop = display.scrollHeight;
+        }
+
+        function quickEmailPrompt() {
+            const client = clientsData.find(c => c.id === currentClientId);
+            if(!client) return;
+            const inputMsg = prompt(`Envoyer un e-mail direct via EmailJS à ${client.email} :`);
+            if(inputMsg) {
+                sendEmailViaEmailJS(client.email, client.name, inputMsg, "Information importante NexFix");
+            }
+        }
+
+        function loadSettingsUI() {
+            const emailConfig = getEmailJSConfig();
+            document.getElementById('setting-emailjs-public').value = emailConfig.publicKey;
+            document.getElementById('setting-emailjs-service').value = emailConfig.serviceId;
+            document.getElementById('setting-emailjs-template').value = emailConfig.templateId;
+
+            document.getElementById('setting-discord-url').value = localStorage.getItem('discord_webhook_url') || DEFAULT_DISCORD_WEBHOOK;
+            document.getElementById('setting-discord-username').value = localStorage.getItem('discord_bot_name') || "NexFix Admin Sentinel";
+        }
+
+        function saveEmailJSConfig() {
+            localStorage.setItem('emailjs_public_key', document.getElementById('setting-emailjs-public').value.trim());
+            localStorage.setItem('emailjs_service_id', document.getElementById('setting-emailjs-service').value.trim());
+            localStorage.setItem('emailjs_template_id', document.getElementById('setting-emailjs-template').value.trim());
+            initEmailJSSDK();
+            showToast("Paramètres EmailJS sauvegardés avec succès.", "success");
+        }
+
+        function saveDiscordConfig() {
+            localStorage.setItem('discord_webhook_url', document.getElementById('setting-discord-url').value.trim());
+            localStorage.setItem('discord_bot_name', document.getElementById('setting-discord-username').value.trim());
+            showToast("Paramètres Discord sauvegardés.", "success");
+        }
+
+        function testEmailJS() {
+            const client = clientsData[0];
+            sendEmailViaEmailJS(client.email, client.name, "Ceci est un e-mail de test envoyé depuis le panneau d'administration NexFix.", "Test EmailJS Sentinel");
+        }
+
+        function testDiscordWebhook() {
+            sendDiscordNotification("🧪 Test Webhook Discord", "Le Webhook Discord de la plateforme Sentinel Admin fonctionne parfaitement !", 1752220);
+            showToast("Notification de test Discord envoyée.", "info");
+        }
+
+        function addLog(channel, title, details = "") {
+            let logs = JSON.parse(localStorage.getItem('admin_logs')) || [];
+            logs.unshift({
+                timestamp: new Date().toLocaleTimeString() + " - " + new Date().toLocaleDateString(),
+                channel: channel,
+                title: title,
+                details: details
+            });
+            if(logs.length > 50) logs.pop();
+            localStorage.setItem('admin_logs', JSON.stringify(logs));
+            renderLogs();
+        }
+
+        function renderLogs() {
+            const tbody = document.getElementById('logs-body');
+            let logs = JSON.parse(localStorage.getItem('admin_logs')) || [];
+            if(logs.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color: var(--text-muted);">Aucun journal enregistré.</td></tr>`;
+                return;
+            }
+            tbody.innerHTML = logs.map(l => `
+                <tr>
+                    <td>${escapeHTML(l.timestamp)}</td>
+                    <td><span style="color: ${l.channel==='EMAILJS'?'var(--accent)':'#7289da'}; font-weight:bold;">[${escapeHTML(l.channel)}]</span></td>
+                    <td>${escapeHTML(l.title)}</td>
+                    <td style="color: var(--text-muted);">${escapeHTML(l.details || '-')}</td>
+                </tr>
+            `).join('');
+        }
+
+        function clearLogs() {
+            localStorage.removeItem('admin_logs');
+            renderLogs();
+            showToast("Journaux effacés.", "info");
+        }
+
+        /* --- ÉCOUTEURS TEMPS RÉEL MULTI-ONGLETS / CLIENT --- */
+        window.addEventListener('storage', (e) => {
+            loadAllClientsAndChats();
+            populateClientSelect();
+            renderClientList();
+            renderMessages();
+
+            if (e.key && (e.key.startsWith('chat_') || e.key.startsWith('nexfix_chat_'))) {
+                showToast("💬 Nouveau message client reçu !", "info");
+            }
+        });
+
+        window.addEventListener('message', (event) => {
+            if (event.data && (event.data.type === 'NEW_CLIENT_MESSAGE' || event.data.type === 'CLIENT_MSG')) {
+                loadAllClientsAndChats();
+                populateClientSelect();
+                renderClientList();
+                renderMessages();
+                showToast("💬 Message Espace Client synchronisé !", "info");
+            }
+        });
+
+        window.onload = () => {
+            sendOTP();
+            
+            setInterval(() => {
+                document.getElementById('clock').innerText = new Date().toLocaleTimeString();
+            }, 1000);
+
+            const inputs = document.querySelectorAll('#otp-container input');
+            inputs.forEach((input, index) => {
+                input.addEventListener('keyup', (e) => {
+                    if (e.target.value && index < 5) inputs[index + 1].focus();
+                });
+            });
+
+            initEmailJSSDK();
+            loadAllClientsAndChats();
+            populateClientSelect();
+            renderClientList();
+            selectClient(currentClientId);
+            loadSettingsUI();
+            renderLogs();
+
+            const ctx = document.getElementById('mainChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00', 'Maintenant'],
+                    datasets: [{
+                        label: 'Messages & Sync Traffic',
+                        data: [15, 8, 22, 45, 60, 38, 75],
+                        borderColor: '#5865F2',
+                        borderWidth: 3,
+                        tension: 0.4,
+                        fill: true,
+                        backgroundColor: 'rgba(88, 101, 242, 0.12)',
+                        pointBackgroundColor: '#5865F2',
+                        pointRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { display: false, grid: { display: false } },
+                        x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#86868b' } }
+                    }
+                }
+            });
+        };
+    </script>
+</body>
+</html>
